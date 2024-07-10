@@ -12,6 +12,7 @@ mod insert;
 mod on_update_value;
 mod primary_key;
 mod set;
+mod table;
 mod table_option;
 mod update;
 
@@ -26,6 +27,7 @@ pub use insert::Insert;
 pub use on_update_value::OnUpdateValue;
 pub use primary_key::PrimaryKey;
 pub use set::Set;
+pub use table::Table;
 pub use table_option::TableOption;
 pub use update::Update;
 

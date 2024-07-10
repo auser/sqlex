@@ -1,14 +1,42 @@
 use std::collections::HashMap;
 
+use pest::iterators::Pair;
 use serde::ser::SerializeStruct;
 use serde::Serialize;
 use serde::Serializer;
 use sql_parse::Type;
 
+use crate::parser::parse_utils::trimmed_str;
+use crate::parser::Rule;
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Database {
     pub db_name: String,
-    pub tables: Vec<Table>,
+    pub tables: HashMap<String, Table>,
+}
+
+impl Database {
+    pub fn new(db_name: String) -> Self {
+        Database {
+            db_name,
+            tables: HashMap::new(),
+        }
+    }
+}
+
+impl<'a> From<Pair<'a, Rule>> for Database {
+    fn from(pair: Pair<'a, Rule>) -> Self {
+        let mut database_pairs = pair.into_inner();
+        let db_name = trimmed_str(
+            database_pairs
+                .next()
+                .expect("unable to unwrap database name"),
+        );
+        Database {
+            db_name,
+            tables: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]

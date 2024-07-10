@@ -1,47 +1,117 @@
-use crate::ExtractResult;
+use crate::{
+    types::{Database, Table},
+    ExtractResult,
+};
 use anyhow::Context;
-use pest::Parser;
+use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 use statements::CreateTable;
 use std::collections::HashMap;
 use types::{Column, Delete, Index, Insert, Update};
 
+pub(crate) mod parse_utils;
 pub mod statements;
 pub mod types;
 
+/**
+ * Database -> HashMap<String, Vec<Tables>>
+ *  Table -> Vec<Operations> where Operations: Create, Update, Delete, Insert, Alter, Drop
+ */
 pub trait Sql {
     fn as_sql(&self) -> String;
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[grammar = "parser/sql.pest"]
-struct MySqlParser;
+pub struct MySqlParser {
+    pub databases: HashMap<String, Database>,
+    pub current_database: Option<Database>,
+    pub operations: Vec<Operation>,
+}
 
-// #[derive(Debug)]
-// pub struct MyParser {
-//     pub databases: HashMap<String, Database>,
-//     pub current_database: Option<Database>,
-// }
+impl MySqlParser {
+    pub fn new() -> Self {
+        Self {
+            databases: HashMap::new(),
+            current_database: None,
+        }
+    }
 
-// impl MyParser {
-//     pub fn new() -> Self {
-//         Self {
-//             databases: HashMap::new(),
-//             current_database: None,
-//         }
-//     }
+    pub fn with_parse(input: &str) -> ExtractResult<Self> {
+        let parser = Self::new();
+        let parsed_parser = parser.parse_mysqldump(input)?;
+        // self.databases.extend(parsed_databases);
 
-//     // pub fn with_parse(input: &str) -> ExtractResult<Self> {
-//     //     let parser = Self::new();
-//     //     let parsed_parser = parser.parse_mysqldump(input)?;
-//     //     // self.databases.extend(parsed_databases);
+        Ok(parsed_parser)
+    }
 
-//     //     Ok(parsed_parser)
-//     // }
+    pub fn parse_mysqldump(mut self, input: &str) -> ExtractResult<()> {
+        let mut parse_result = MySqlParser::parse(Rule::MYSQL_DUMP, input)
+            .context("invalid input")
+            .unwrap();
+        let mysqldump = parse_result
+            .next()
+            .context("unable to parse input")
+            .unwrap();
+        let mut current_database: Option<Database> = self.current_database.clone();
 
-//     // pub fn parse(self, input: &str) -> ExtractResult<Self> {
-//     //     Ok(self.parse_mysqldump(input)?)
-//     // }
+        for pair in mysqldump.into_inner() {
+            match pair.as_rule() {
+                Rule::SQL_STATEMENT => {
+                    for inner_pair in pair.into_inner() {
+                        match inner_pair.as_rule() {
+                            // Rule::CREATE_DATABASE => {
+                            //     let database = Database::from(inner_pair);
+
+                            //     if let Some(db) = current_database.take() {
+                            //         if db.name != database.name {
+                            //             self.insert_database(db);
+                            //         }
+                            //     }
+
+                            //     current_database = Some(database);
+                            // }
+                            Rule::USE_DATABASE => {
+                                let name = inner_pair
+                                    .into_inner()
+                                    .next()
+                                    .expect("unable to unwrap use_database name")
+                                    .as_str()
+                                    .trim_matches('`')
+                                    .to_string();
+
+                                current_database = Some(Database::new(name.to_string()));
+                            }
+                            Rule::CREATE_TABLE => {
+                                let table: Table = Table::from(pair);
+                                if let Some(db) = current_database {
+                                    db.tables.insert(table.name, table);
+                                }
+                            }
+                            _ => self.parse_sql(current_database, inner_pair),
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn parse_sql(&mut self, current_database: Option<Database>, pair: Pair<Rule>) {
+        match pair.as_rule() {
+            Rule::INSERT_STATEMENT => {
+                let insert: Insert = Insert::from(pair);
+                if let Some(db) = current_database {
+                    if let Some(table) = db.tables.get(db.db_name) {
+                        table.operations.push(Operation::Insert(insert));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
 
 //     pub fn get_databases(&self) -> Vec<Database> {
 //         self.databases.values().cloned().collect()

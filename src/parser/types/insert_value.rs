@@ -2,7 +2,7 @@ use crate::parser::{Rule, Sql};
 use pest::iterators::Pair;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum InsertValue {
     Null,
     Default,

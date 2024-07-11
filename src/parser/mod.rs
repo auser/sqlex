@@ -10,7 +10,7 @@ pub trait Sql {
 
 #[derive(Parser)]
 #[grammar = "parser/sql.pest"]
-struct MySqlParser;
+pub struct MySqlParser;
 
 // #[derive(Debug)]
 // pub struct MyParser {

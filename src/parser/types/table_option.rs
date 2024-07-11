@@ -1,6 +1,7 @@
-use crate::parser::{types::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
 use serde::Serialize;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 /// Note: Only necessary options are currently implemented.
 /// For a full list, see https://dev.mysql.com/doc/refman/8.4/en/create-table.html
@@ -94,16 +95,27 @@ impl From<Pair<'_, Rule>> for TableOption {
     }
 }
 
-impl Sql for TableOption {
-    fn as_sql(&self) -> String {
-        TEMPLATES
-            .render(
-                "table_option/template.sql",
-                &tera::Context::from_serialize(self).unwrap(),
-            )
-            .expect("Failed to render table option sql")
-            .trim()
-            .to_string()
+impl Display for TableOption {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::AutoIncrement { value } => write!(f, "AUTO_INCREMENT={}", value),
+            Self::CharacterSet { default, value } => write!(
+                f,
+                "{}CHARSET={}",
+                if *default { "DEFAULT " } else { "" },
+                value,
+            ),
+            Self::Collate { default, value } => write!(
+                f,
+                "{}COLLATE={}",
+                if *default { "DEFAULT " } else { "" },
+                value,
+            ),
+            Self::Comment { value } => write!(f, "COMMENT='{}'", value),
+            Self::Engine { value } => write!(f, "ENGINE={}", value),
+            Self::RowFormat { value } => write!(f, "ROW_FORMAT={}", value),
+            Self::StatsPersistent { value } => write!(f, "STATS_PERSISTENT={}", value),
+        }
     }
 }
 
@@ -184,7 +196,7 @@ mod test {
                 TableOption::Comment { value: String::from("help categories") },
             ]
             .into_iter()
-            .map(|opt| opt.as_sql().trim().to_string())
+            .map(|opt| opt.to_string())
             .collect::<Vec<String>>()
             .join(" ")
             .as_str(),

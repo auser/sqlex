@@ -1,15 +1,10 @@
-use lazy_static::lazy_static;
-use tera::Tera;
-
 mod assignments;
 mod column;
 mod data_type;
 mod database_option;
 mod default_value;
-mod delete;
 mod foreign_key;
 mod index;
-mod insert;
 mod insert_priority;
 mod insert_value;
 mod insert_values;
@@ -20,15 +15,13 @@ mod table_option;
 mod update;
 mod where_stmts;
 
-pub use assignments::AssignmentValue;
+pub use assignments::{Assignment, AssignmentValue};
 pub use column::Column;
 pub use data_type::DataType;
 pub use database_option::DatabaseOption;
 pub use default_value::DefaultValue;
-pub use delete::Delete;
 pub use foreign_key::ForeignKey;
 pub use index::Index;
-pub use insert::Insert;
 pub use insert_priority::InsertPriority;
 pub use insert_value::InsertValue;
 pub use insert_values::InsertValues;
@@ -38,16 +31,3 @@ pub use set::Set;
 pub use table_option::TableOption;
 pub use update::Update;
 pub use where_stmts::Where;
-
-lazy_static! {
-    pub static ref TEMPLATES: Tera = {
-        match Tera::new("src/parser/types/**/*.sql") {
-            Ok(t) => t,
-            Err(e) => {
-                println!("Parsing error: {e}");
-
-                ::std::process::exit(1);
-            }
-        }
-    };
-}

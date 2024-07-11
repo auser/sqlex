@@ -1,6 +1,7 @@
-use crate::parser::{types::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
 use serde::Serialize;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
@@ -33,15 +34,19 @@ impl From<Pair<'_, Rule>> for OnUpdateValue {
     }
 }
 
-impl Sql for OnUpdateValue {
-    fn as_sql(&self) -> String {
-        TEMPLATES
-            .render(
-                "on_update_value/template.sql",
-                &tera::Context::from_serialize(self).unwrap(),
-            )
-            .expect("Failed to render on update value sql")
-            .trim()
-            .to_string()
+impl Display for OnUpdateValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::Cascade => write!(f, "CASCADE"),
+            Self::CurrentTimestamp { value } => write!(
+                f,
+                "CURRENT_TIMESTAMP{}",
+                if let Some(value) = value {
+                    format!(" ({value})")
+                } else {
+                    "".to_string()
+                }
+            ),
+        }
     }
 }

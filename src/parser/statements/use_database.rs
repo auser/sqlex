@@ -1,6 +1,7 @@
-use crate::parser::{statements::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
 use serde::Serialize;
+use std::fmt::{Display, Formatter, Result};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UseDatabase {
@@ -21,15 +22,8 @@ impl From<Pair<'_, Rule>> for UseDatabase {
     }
 }
 
-impl Sql for UseDatabase {
-    fn as_sql(&self) -> String {
-        TEMPLATES
-            .render(
-                "use_database/template.sql",
-                &tera::Context::from_serialize(self).unwrap(),
-            )
-            .expect("Failed to render use database sql")
-            .trim()
-            .to_string()
+impl Display for UseDatabase {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "USE `{}`", self.name)
     }
 }

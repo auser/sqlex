@@ -1,1 +1,0 @@
-`{{ name }}` {{ data_type }}{% if not nullable %} NOT NULL{% endif %}{% if default %} DEFAULT {{ default }}{% endif %}{% if on_update %} ON UPDATE {{ on_update }}{% endif %}{% if auto_increment %} AUTO_INCREMENT{% endif %}{% if comment %} COMMENT '{{ comment }}'{% endif %}

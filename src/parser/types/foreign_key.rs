@@ -1,5 +1,6 @@
-use crate::parser::{types::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone)]
 pub struct ForeignKey {
@@ -45,24 +46,6 @@ impl From<Pair<'_, Rule>> for ForeignKey {
             },
         );
 
-        Self::new(
-            name,
-            local_column_names,
-            foreign_column_names,
-            foreign_table_name,
-            on_update,
-        )
-    }
-}
-
-impl ForeignKey {
-    pub fn new(
-        name: Option<String>,
-        local_column_names: Vec<String>,
-        foreign_column_names: Vec<String>,
-        foreign_table_name: String,
-        on_update: Option<String>,
-    ) -> Self {
         Self {
             name,
             local_column_names,
@@ -73,21 +56,33 @@ impl ForeignKey {
     }
 }
 
-impl Sql for ForeignKey {
-    fn as_sql(&self) -> String {
-        let mut ctx = tera::Context::new();
-
-        ctx.insert("name", &self.name);
-        ctx.insert("local_column_names", &self.local_column_names);
-        ctx.insert("foreign_column_names", &self.foreign_column_names);
-        ctx.insert("foreign_table_name", &self.foreign_table_name);
-        ctx.insert("on_update", &self.on_update);
-
-        TEMPLATES
-            .render("foreign_key/template.sql", &ctx)
-            .expect("Failed to render foreign key sql")
-            .trim()
-            .to_string()
+impl Display for ForeignKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "{}FOREIGN KEY ({}) REFERENCES `{}` ({}){}",
+            if let Some(ref name) = self.name {
+                format!("CONSTRAINT `{name}` ")
+            } else {
+                "".to_string()
+            },
+            self.local_column_names
+                .iter()
+                .map(|col| format!("`{col}`"))
+                .collect::<Vec<String>>()
+                .join(", "),
+            self.foreign_table_name,
+            self.foreign_column_names
+                .iter()
+                .map(|col| format!("`{col}`"))
+                .collect::<Vec<String>>()
+                .join(", "),
+            if let Some(ref update) = self.on_update {
+                format!(" ON UPDATE {update}")
+            } else {
+                "".to_string()
+            },
+        )
     }
 }
 
@@ -209,8 +204,8 @@ mod test {
         };
 
         assert_eq!(
-            foreign_key.as_sql().trim(),
-            "FOREIGN KEY (`column_id`,`column_name`) REFERENCES `column` (`id`,`name`)",
+            foreign_key.to_string().as_str(),
+            "FOREIGN KEY (`column_id`, `column_name`) REFERENCES `column` (`id`, `name`)",
         );
     }
 
@@ -225,8 +220,8 @@ mod test {
         };
 
         assert_eq!(
-            foreign_key.as_sql().trim(),
-            "CONSTRAINT `fk_column` FOREIGN KEY (`column_id`,`column_name`) REFERENCES `column` (`id`,`name`)",
+            foreign_key.to_string().as_str(),
+            "CONSTRAINT `fk_column` FOREIGN KEY (`column_id`, `column_name`) REFERENCES `column` (`id`, `name`)",
         );
     }
 
@@ -240,9 +235,9 @@ mod test {
                 foreign_table_name: String::from("column"),
                 on_update: Some(String::from("CASCADE")),
             }
-            .as_sql()
-            .trim(),
-            "CONSTRAINT `fk_column` FOREIGN KEY (`column_id`,`column_name`) REFERENCES `column` (`id`,`name`) ON UPDATE CASCADE",
+            .to_string()
+            .as_str(),
+            "CONSTRAINT `fk_column` FOREIGN KEY (`column_id`, `column_name`) REFERENCES `column` (`id`, `name`) ON UPDATE CASCADE",
         );
     }
 }

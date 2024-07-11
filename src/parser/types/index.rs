@@ -1,5 +1,6 @@
-use crate::parser::{types::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone)]
 pub struct Index {
@@ -34,17 +35,19 @@ impl From<Pair<'_, Rule>> for Index {
     }
 }
 
-impl Sql for Index {
-    fn as_sql(&self) -> String {
-        let mut ctx = tera::Context::new();
-
-        ctx.insert("name", &self.name);
-        ctx.insert("column_names", &self.columns);
-        ctx.insert("unique", &self.unique);
-
-        TEMPLATES
-            .render("index/template.sql", &ctx)
-            .expect("Failed to render index sql")
+impl Display for Index {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "{}KEY `{}` ({})",
+            if self.unique { "UNIQUE " } else { "" },
+            self.name,
+            self.columns
+                .iter()
+                .map(|col| format!("`{col}`"))
+                .collect::<Vec<String>>()
+                .join(", "),
+        )
     }
 }
 
@@ -138,8 +141,8 @@ mod test {
         };
 
         assert_eq!(
-            index.as_sql().trim(),
-            "KEY `recipient` (`recipient_id`,`recipient_name`)",
+            index.to_string().as_str(),
+            "KEY `recipient` (`recipient_id`, `recipient_name`)",
         );
     }
 
@@ -152,8 +155,8 @@ mod test {
         };
 
         assert_eq!(
-            index.as_sql().trim(),
-            "UNIQUE KEY `recipient` (`recipient_id`,`recipient_name`)",
+            index.to_string().as_str(),
+            "UNIQUE KEY `recipient` (`recipient_id`, `recipient_name`)",
         );
     }
 }

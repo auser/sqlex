@@ -1,9 +1,9 @@
 use crate::parser::{
-    statements::TEMPLATES,
     types::{Column, ForeignKey, Index, PrimaryKey, TableOption},
-    Rule, Sql,
+    Rule,
 };
 use pest::iterators::Pair;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone)]
 pub struct CreateTable {
@@ -67,40 +67,40 @@ impl From<Pair<'_, Rule>> for CreateTable {
     }
 }
 
-impl Sql for CreateTable {
-    fn as_sql(&self) -> String {
-        let mut ctx = tera::Context::new();
+impl Display for CreateTable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let mut table_specs = self
             .columns
             .iter()
-            .map(|col| col.as_sql())
-            .collect::<Vec<String>>();
-        let table_options = self
-            .options
-            .iter()
-            .map(|col| col.as_sql())
+            .map(|col| col.to_string())
             .collect::<Vec<String>>();
 
         self.primary_key
             .as_ref()
-            .inspect(|pk| table_specs.push(pk.as_sql()));
+            .inspect(|pk| table_specs.push(pk.to_string()));
         self.foreign_keys
             .iter()
-            .for_each(|fk| table_specs.push(fk.as_sql()));
+            .for_each(|fk| table_specs.push(fk.to_string()));
         self.indexes
             .iter()
-            .for_each(|idx| table_specs.push(idx.as_sql()));
+            .for_each(|idx| table_specs.push(idx.to_string()));
 
-        ctx.insert("name", self.name.as_str());
-        ctx.insert("if_not_exists", &self.if_not_exists);
-        ctx.insert("table_specs", &table_specs);
-        ctx.insert("table_options", &table_options);
-
-        TEMPLATES
-            .render("create_table/template.sql", &ctx)
-            .expect("Failed to render create table sql")
-            .trim()
-            .to_string()
+        write!(
+            f,
+            "CREATE TABLE{} `{}` (\n  {}\n){}",
+            if self.if_not_exists {
+                " IF NOT EXISTS"
+            } else {
+                ""
+            },
+            self.name,
+            table_specs.join(",\n  "),
+            self.options
+                .iter()
+                .map(|opt| format!(" {opt}"))
+                .collect::<Vec<String>>()
+                .join(""),
+        )
     }
 }
 
@@ -270,9 +270,9 @@ mod test {
                     },
                 ],
             }
-            .as_sql()
-            .trim(),
-            "CREATE TABLE IF NOT EXISTS `application` (\n  `Id` INT NOT NULL AUTO_INCREMENT,\n  `ProductId` INT NOT NULL DEFAULT '0',\n  `Name` VARCHAR (36) NOT NULL,\n  `SecurityToken` VARCHAR (200) DEFAULT NULL,\n  `RoutingKey` VARCHAR (50) DEFAULT NULL,\n  `AdminPrivilege` TINYINT (1) DEFAULT '0',\n  `CreatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`Id`),\n  CONSTRAINT `fk_application_product` FOREIGN KEY (`ProductId`) REFERENCES `product` (`Id`),\n  KEY `fk_application_product` (`ProductId`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;"
+            .to_string()
+            .as_str(),
+            "CREATE TABLE IF NOT EXISTS `application` (\n  `Id` INT NOT NULL AUTO_INCREMENT,\n  `ProductId` INT NOT NULL DEFAULT '0',\n  `Name` VARCHAR (36) NOT NULL,\n  `SecurityToken` VARCHAR (200) DEFAULT NULL,\n  `RoutingKey` VARCHAR (50) DEFAULT NULL,\n  `AdminPrivilege` TINYINT (1) DEFAULT '0',\n  `CreatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`Id`),\n  CONSTRAINT `fk_application_product` FOREIGN KEY (`ProductId`) REFERENCES `product` (`Id`),\n  KEY `fk_application_product` (`ProductId`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
         );
     }
 }

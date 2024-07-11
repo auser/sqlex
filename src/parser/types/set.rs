@@ -1,8 +1,6 @@
-use std::fmt::Display;
-
+use crate::parser::{parse_utils::trim_str, Rule};
 use pest::iterators::{Pair, Pairs};
-
-use crate::parser::{parse_utils::trim_str, Rule, Sql};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SetValue {
@@ -44,7 +42,7 @@ pub enum SetKey {
 }
 
 impl Display for SetKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             SetKey::At(s) => write!(f, "@{}", s),
             SetKey::Identifier(s) => write!(f, "{}", s),
@@ -93,14 +91,15 @@ pub struct Set {
     pub kv_pairs: Vec<KVPair>,
 }
 
-impl Sql for Set {
-    fn as_sql(&self) -> String {
+impl Display for Set {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let s = self
             .kv_pairs
             .iter()
             .map(|kv| format!("{}={}", kv.key, SetValue::from(kv.value.clone())))
             .collect::<Vec<String>>();
-        format!("SET {}", s.join(", "))
+
+        write!(f, "SET {}", s.join(", "))
     }
 }
 
@@ -129,19 +128,20 @@ impl From<Pairs<'_, Rule>> for Set {
 
 #[cfg(test)]
 mod tests {
-    use pest::Parser;
-
-    use crate::parser::{MySqlParser, Rule};
-
     use super::*;
+    use crate::parser::{MySqlParser, Rule};
+    use pest::Parser;
 
     #[test]
     fn test_parses_set_into_single_kv_pair() {
         let sql = "SET @a = 1";
         let parsed = MySqlParser::parse(Rule::SET_STATEMENT, sql);
+
         assert!(parsed.is_ok());
+
         let set = Set::from(parsed.unwrap());
         let kvs = set.kv_pairs;
+
         assert_eq!(kvs.len(), 1);
         assert_eq!(kvs[0].key, SetKey::At("a".to_string()));
         assert_eq!(kvs[0].value, SetValue::Number(1));
@@ -151,9 +151,12 @@ mod tests {
     fn test_parses_set_into_k_v_pairs() {
         let sql = "SET @a = 1, @b = true, name = 'John'";
         let parsed = MySqlParser::parse(Rule::SET_STATEMENT, sql);
+
         assert!(parsed.is_ok());
+
         let set = Set::from(parsed.unwrap());
         let kvs = set.kv_pairs;
+
         assert_eq!(kvs.len(), 3);
         assert_eq!(kvs[0].key, SetKey::At("a".to_string()));
         assert_eq!(kvs[0].value, SetValue::Number(1));
@@ -167,9 +170,12 @@ mod tests {
     fn test_set_back_to_sql() {
         let sql = "SET @a = 1, @b = true, name = 'John'";
         let parsed = MySqlParser::parse(Rule::SET_STATEMENT, sql);
+
         assert!(parsed.is_ok());
+
         let set = Set::from(parsed.unwrap());
-        let sql = set.as_sql();
+        let sql = set.to_string();
+
         assert_eq!(sql, "SET @a=1, @b=true, name='John'");
     }
 
@@ -177,6 +183,7 @@ mod tests {
     fn test_errors_with_invalid_set_stmt() {
         let sql = "SET @a > 1";
         let parsed = MySqlParser::parse(Rule::SET_STATEMENT, sql);
+
         assert!(parsed.is_err());
     }
 }

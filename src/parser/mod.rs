@@ -4,10 +4,6 @@ pub(crate) mod parse_utils;
 pub mod statements;
 pub mod types;
 
-pub trait Sql {
-    fn as_sql(&self) -> String;
-}
-
 #[derive(Parser)]
 #[grammar = "parser/sql.pest"]
 struct MySqlParser;
@@ -284,7 +280,6 @@ struct MySqlParser;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::Sql;
 
     // #[test]
     // fn test_create_database() {

@@ -1,7 +1,9 @@
-use crate::parser::{types::assignments::Assignment, Rule, Sql};
+use crate::parser::{
+    types::{Assignment, Where},
+    Rule,
+};
 use pest::iterators::Pair;
-
-use super::Where;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone)]
 pub struct Update {
@@ -51,22 +53,24 @@ impl From<Pair<'_, Rule>> for Update {
     }
 }
 
-impl Sql for Update {
-    fn as_sql(&self) -> String {
+impl Display for Update {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let table_name = self.table_name.clone();
         let set_clauses = self.set_clauses.clone();
         let where_clauses = self.where_clauses.clone();
-        format!(
+
+        write!(
+            f,
             r#"UPDATE `{table_name}` SET {set_clauses} WHERE {where_clauses};"#,
             table_name = table_name,
             set_clauses = set_clauses
                 .into_iter()
-                .map(|a| a.as_sql())
+                .map(|a| a.to_string())
                 .collect::<Vec<String>>()
                 .join(","),
             where_clauses = where_clauses
                 .into_iter()
-                .map(|a| a.as_sql())
+                .map(|a| a.to_string())
                 .collect::<Vec<String>>()
                 .join(" "),
         )
@@ -86,6 +90,7 @@ mod tests {
         let mut parsed = MySqlParser::parse(Rule::UPDATE_STATEMENT, sql).unwrap();
         let update_stmt = parsed.next().unwrap();
         let update = Update::from(update_stmt);
-        assert_eq!(update.as_sql(), sql);
+
+        assert_eq!(update.to_string(), sql);
     }
 }

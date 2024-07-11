@@ -1,6 +1,7 @@
-use crate::parser::{types::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
 use serde::Serialize;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
@@ -44,15 +45,21 @@ impl From<Pair<'_, Rule>> for DefaultValue {
     }
 }
 
-impl Sql for DefaultValue {
-    fn as_sql(&self) -> String {
-        TEMPLATES
-            .render(
-                "default_value/template.sql",
-                &tera::Context::from_serialize(self).unwrap(),
-            )
-            .expect("Failed to render default value sql")
-            .trim()
-            .to_string()
+impl Display for DefaultValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::Null => write!(f, "NULL"),
+            Self::CurrentTimestamp { value } => write!(
+                f,
+                "CURRENT_TIMESTAMP{}",
+                if let Some(value) = value {
+                    format!(" ({value})")
+                } else {
+                    "".to_string()
+                }
+            ),
+            Self::Text { value } => write!(f, "'{}'", value),
+            Self::Number { value } => write!(f, "{}", value),
+        }
     }
 }

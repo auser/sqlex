@@ -1,4 +1,4 @@
-use crate::parser::{Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -32,11 +32,5 @@ impl Display for InsertPriority {
             Self::Delayed => write!(f, "DELAYED"),
             Self::High => write!(f, "HIGH_PRIORITY"),
         }
-    }
-}
-
-impl Sql for InsertPriority {
-    fn as_sql(&self) -> String {
-        format!("{}", self)
     }
 }

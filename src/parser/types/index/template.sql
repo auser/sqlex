@@ -1,1 +1,0 @@
-{% if unique %}UNIQUE {% endif %}KEY `{{ name }}` ({% for column_name in column_names %}`{{ column_name }}`{% if not loop.last %},{% endif %}{% endfor %})

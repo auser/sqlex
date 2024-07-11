@@ -1,6 +1,6 @@
+use crate::parser::Rule;
 use pest::iterators::Pair;
-
-use crate::parser::{Rule, Sql};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone)]
 pub struct Where {
@@ -16,9 +16,8 @@ impl From<Pair<'_, Rule>> for Where {
         let column = inner_pair.next().unwrap().as_str().to_string();
         let operator = inner_pair.next().unwrap().as_str().to_string();
         let value = inner_pair.next().unwrap().as_str().to_string();
-        // let operator_pair = inner.next().unwrap();
-        // let value_pair = inner.next().unwrap();
-        Where {
+
+        Self {
             column,
             operator,
             value,
@@ -26,18 +25,17 @@ impl From<Pair<'_, Rule>> for Where {
     }
 }
 
-impl Sql for Where {
-    fn as_sql(&self) -> String {
-        format!("{} {} {}", self.column, self.operator, self.value)
+impl Display for Where {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{} {} {}", self.column, self.operator, self.value)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::parser::MySqlParser;
     use pest::Parser;
-
-    use super::*;
 
     #[test]
     fn test_with_valid_where_stmt() {

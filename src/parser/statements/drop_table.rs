@@ -1,6 +1,7 @@
-use crate::parser::{statements::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
 use serde::Serialize;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DropTable {
@@ -30,16 +31,19 @@ impl From<Pair<'_, Rule>> for DropTable {
     }
 }
 
-impl Sql for DropTable {
-    fn as_sql(&self) -> String {
-        TEMPLATES
-            .render(
-                "drop_table/template.sql",
-                &tera::Context::from_serialize(self).unwrap(),
-            )
-            .expect("Failed to render drop table sql")
-            .trim()
-            .to_string()
+impl Display for DropTable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "DROP{} TABLE{} {}",
+            if self.temporary { " TEMPORARY" } else { "" },
+            if self.if_exists { " IF EXISTS" } else { "" },
+            self.names
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<String>>()
+                .join(", "),
+        )
     }
 }
 
@@ -81,9 +85,9 @@ mod test {
                 temporary: false,
                 if_exists: true,
             }
-            .as_sql()
+            .to_string()
             .as_str(),
-            "DROP TABLE IF EXISTS `one`;",
+            "DROP TABLE IF EXISTS `one`",
         );
     }
 }

@@ -1,6 +1,7 @@
-use crate::parser::{types::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
 use serde::Serialize;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
@@ -32,14 +33,28 @@ impl From<Pair<'_, Rule>> for DatabaseOption {
     }
 }
 
-impl Sql for DatabaseOption {
-    fn as_sql(&self) -> String {
-        TEMPLATES
-            .render(
-                "database_option/template.sql",
-                &tera::Context::from_serialize(self).unwrap(),
-            )
-            .expect("Failed to render database option sql")
+impl Display for DatabaseOption {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::CharacterSet { default, value } => write!(
+                f,
+                "{}CHARACTER SET {}",
+                if *default { "DEFAULT " } else { "" },
+                value,
+            ),
+            Self::Collate { default, value } => write!(
+                f,
+                "{}COLLATE {}",
+                if *default { "DEFAULT " } else { "" },
+                value,
+            ),
+            Self::Encryption { default, value } => write!(
+                f,
+                "{}ENCRYPTION='{}'",
+                if *default { "DEFAULT " } else { "" },
+                value,
+            ),
+        }
     }
 }
 
@@ -108,7 +123,7 @@ mod test {
                 }
             ]
             .into_iter()
-            .map(|opt| opt.as_sql().trim().to_string())
+            .map(|opt| opt.to_string())
             .collect::<Vec<String>>()
             .join(" ")
             .as_str(),

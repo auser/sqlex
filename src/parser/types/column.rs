@@ -1,8 +1,9 @@
 use crate::parser::{
-    types::{DataType, DefaultValue, OnUpdateValue, TEMPLATES},
-    Rule, Sql,
+    types::{DataType, DefaultValue, OnUpdateValue},
+    Rule,
 };
 use pest::iterators::Pair;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone)]
 pub struct Column {
@@ -70,27 +71,35 @@ impl From<Pair<'_, Rule>> for Column {
     }
 }
 
-impl Sql for Column {
-    fn as_sql(&self) -> String {
-        let mut ctx = tera::Context::new();
-
-        ctx.insert("name", &self.name);
-        ctx.insert("data_type", &self.data_type.as_sql());
-        ctx.insert("nullable", &self.nullable);
-        ctx.insert(
-            "default",
-            &self.default.as_ref().map(|default| default.as_sql()),
-        );
-        ctx.insert(
-            "on_update",
-            &self.on_update.as_ref().map(|on_update| on_update.as_sql()),
-        );
-        ctx.insert("auto_increment", &self.auto_increment);
-        ctx.insert("comment", &self.comment);
-
-        TEMPLATES
-            .render("column/template.sql", &ctx)
-            .expect("Failed to render column sql")
+impl Display for Column {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "`{}` {}{}{}{}{}{}",
+            self.name,
+            self.data_type,
+            if !self.nullable { " NOT NULL" } else { "" },
+            if let Some(ref default) = self.default {
+                format!(" DEFAULT {default}")
+            } else {
+                "".to_string()
+            },
+            if let Some(ref update) = self.on_update {
+                format!(" ON UPDATE {update}")
+            } else {
+                "".to_string()
+            },
+            if self.auto_increment {
+                " AUTO_INCREMENT"
+            } else {
+                ""
+            },
+            if let Some(ref comment) = self.comment {
+                format!(" COMMENT '{comment}'")
+            } else {
+                "".to_string()
+            },
+        )
     }
 }
 
@@ -305,7 +314,7 @@ mod test {
                 auto_increment: true,
                 comment: Some(String::from("This is a fully loaded column")),
             }
-            .as_sql()
+            .to_string()
             .trim(),
             "`raw_response_json` TEXT (42) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'Hello, world!' ON UPDATE CURRENT_TIMESTAMP (6) AUTO_INCREMENT COMMENT 'This is a fully loaded column'"
         );

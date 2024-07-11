@@ -1,6 +1,6 @@
 use crate::parser::{
     types::{InsertPriority, InsertValues},
-    Rule, Sql,
+    Rule,
 };
 use pest::iterators::Pair;
 use std::fmt::{Display, Formatter, Result as FmtResult};
@@ -72,12 +72,6 @@ impl Display for Insert {
     }
 }
 
-impl Sql for Insert {
-    fn as_sql(&self) -> String {
-        format!("{self}")
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -116,7 +110,7 @@ mod test {
                 column_names: vec![String::from("col1"), String::from("col2")],
                 values: vec![InsertValues(vec![InsertValue::Null, InsertValue::Default]), InsertValues(vec![InsertValue::Text { value: String::from("foo") }, InsertValue::Number { value: String::from("42") }])]
             }
-            .as_sql()
+            .to_string()
             .as_str(),
             "INSERT HIGH_PRIORITY IGNORE INTO `my_table` (`col1`, `col2`) VALUES (NULL, DEFAULT), ('foo', 42)"
         );

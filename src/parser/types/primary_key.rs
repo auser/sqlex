@@ -1,5 +1,6 @@
-use crate::parser::{types::TEMPLATES, Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug, Clone)]
 pub struct PrimaryKey {
@@ -20,38 +21,42 @@ impl From<Pair<'_, Rule>> for PrimaryKey {
                     .map(|col| col.as_str().trim_matches('`').to_string())
                     .collect::<Vec<String>>();
 
-                PrimaryKey::new(name, columns)
+                PrimaryKey {
+                    name,
+                    column_names: columns,
+                }
             }
             Rule::QUOTED_IDENTIFIER => {
                 let columns = inner
                     .map(|col| col.as_str().trim_matches('`').to_string())
                     .collect::<Vec<String>>();
 
-                PrimaryKey::new(None, columns)
+                PrimaryKey {
+                    name: None,
+                    column_names: columns,
+                }
             }
             rule => panic!("Expected an INDEX_NAME or a QUOTED_IDENTIFIER, not {rule:?}"),
         }
     }
 }
 
-impl PrimaryKey {
-    pub fn new(name: Option<String>, column_names: Vec<String>) -> Self {
-        Self { name, column_names }
-    }
-}
-
-impl Sql for PrimaryKey {
-    fn as_sql(&self) -> String {
-        let mut ctx = tera::Context::new();
-
-        ctx.insert("name", &self.name);
-        ctx.insert("column_names", &self.column_names);
-
-        TEMPLATES
-            .render("primary_key/template.sql", &ctx)
-            .expect("Failed to render primary key sql")
-            .trim()
-            .to_string()
+impl Display for PrimaryKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "{}PRIMARY KEY ({})",
+            if let Some(ref name) = self.name {
+                format!("CONSTRAINT `{name}` ")
+            } else {
+                "".to_string()
+            },
+            self.column_names
+                .iter()
+                .map(|col| format!("`{col}`"))
+                .collect::<Vec<String>>()
+                .join(", "),
+        )
     }
 }
 
@@ -137,7 +142,10 @@ mod test {
             column_names: vec![String::from("id1"), String::from("id2")],
         };
 
-        assert_eq!(primary_key.as_sql().trim(), "PRIMARY KEY (`id1`,`id2`)",);
+        assert_eq!(
+            primary_key.to_string().as_str(),
+            "PRIMARY KEY (`id1`, `id2`)",
+        );
     }
 
     #[test]
@@ -148,8 +156,8 @@ mod test {
         };
 
         assert_eq!(
-            primary_key.as_sql().trim(),
-            "CONSTRAINT `pk` PRIMARY KEY (`id1`,`id2`)",
+            primary_key.to_string().as_str(),
+            "CONSTRAINT `pk` PRIMARY KEY (`id1`, `id2`)",
         );
     }
 }

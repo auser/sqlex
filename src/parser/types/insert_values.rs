@@ -1,4 +1,4 @@
-use crate::parser::{types::InsertValue, Rule, Sql};
+use crate::parser::{types::InsertValue, Rule};
 use pest::iterators::Pair;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -20,16 +20,10 @@ impl Display for InsertValues {
                 write!(f, ", ")?;
             }
 
-            write!(f, "{}", value.as_sql())?;
+            write!(f, "{}", value.to_string())?;
         }
 
         write!(f, ")")
-    }
-}
-
-impl Sql for InsertValues {
-    fn as_sql(&self) -> String {
-        format!("{self}")
     }
 }
 
@@ -81,8 +75,8 @@ mod test {
                     value: String::from("Baz")
                 }
             ])
-            .as_sql()
-            .trim(),
+            .to_string()
+            .as_str(),
             "(NULL, DEFAULT, 'Foo', 42.69, Baz)"
         );
     }

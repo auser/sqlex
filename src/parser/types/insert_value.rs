@@ -1,4 +1,4 @@
-use crate::parser::{Rule, Sql};
+use crate::parser::Rule;
 use pest::iterators::Pair;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -47,11 +47,5 @@ impl Display for InsertValue {
             Self::Number { value } => write!(f, "{value}"),
             Self::Identifier { value } => write!(f, "{value}"),
         }
-    }
-}
-
-impl Sql for InsertValue {
-    fn as_sql(&self) -> String {
-        format!("{self}")
     }
 }

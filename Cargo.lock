@@ -644,6 +644,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8478577c03552c21db0e2724ffb8986a5ce7af88107e6be5d2ee6e158c12800"
 
 [[package]]
+name = "iterate-text"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "853a8432217c6314e86bd14d1985e4bfd8be2fdd4ebc9cb2ab0eb9474caa7055"
+
+[[package]]
 name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1298,6 +1304,7 @@ dependencies = [
  "clap",
  "config",
  "fakeit",
+ "iterate-text",
  "lazy_static",
  "paste",
  "pest",

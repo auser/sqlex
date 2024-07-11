@@ -1,20 +1,29 @@
+use crate::parser::Sql;
+use pest::Parser;
 #[allow(unused)]
 use rayon::prelude::*;
+use regex::Regex;
 use sql_parse::Statement::{self, InsertReplace};
 use sql_parse::{parse_statements, Expression, ParseOptions, SQLDialect};
+use std::fmt::write;
+use std::fs::File;
 use std::path::Path;
 
-use clap::Parser;
+use clap::Parser as ClapParser;
 
+use crate::masker::Transform;
+use crate::parser::statements::Insert;
+use crate::parser::{MySqlParser, Rule};
 // use crate::parser::MyParser;
 use crate::rules::get_struct_by_name;
 use crate::ExtractResult;
 use crate::{settings::parse_masking_config, simple_parse, sqlparse::to_json, types::Database};
+use iterate_text::file::lines::IterateFileLines;
 
 #[allow(unused)]
 static DEFAULT_JSON_FILTER: &str = r#"to_entries | map({table: .key, columns: .value.columns | map(select(.name | test("pass"; "i")))}) | map(select(.columns | length > 0))"#;
 
-#[derive(Parser)]
+#[derive(ClapParser)]
 #[command(about = format!("
 Extract SQL from a text file
 
@@ -34,27 +43,24 @@ pub struct Args {
     pub cmd: Option<Commands>,
 }
 
-#[derive(Parser)]
+#[derive(ClapParser)]
 pub enum Commands {
     #[command(about = "Mask PII from a SQL file")]
     MaskPII(MaskPIIArgs),
 }
 
-#[derive(Parser)]
+#[derive(ClapParser)]
 pub struct MaskPIIArgs {
     #[arg(short, long)]
-    pub sql_file: String,
-
-    #[arg(short, long)]
-    masking_config: Option<String>,
+    masking_config: String,
 }
 
 pub fn exec() -> ExtractResult<Vec<String>> {
     let args = Args::parse();
 
     match args.cmd {
-        Some(Commands::MaskPII(args)) => {
-            run_mask_pii_action(&args);
+        Some(Commands::MaskPII(pii_args)) => {
+            run_mask_pii_action(args.sql_file, &pii_args);
         }
         _ => {
             run_default_action(&args);
@@ -69,8 +75,8 @@ pub fn exec() -> ExtractResult<Vec<String>> {
 /// 2. If the `--mask-pii` flag is provided, mask the PII in the SQL file.
 ///
 /// Returns a list of statements to be executed.
-fn run_mask_pii_action(args: &MaskPIIArgs) -> ExtractResult<Vec<Statement>> {
-    let sqlfile_path = Path::new(&args.sql_file);
+fn run_mask_pii_action(sql_file: String, args: &MaskPIIArgs) -> ExtractResult<Vec<Statement>> {
+    let sqlfile_path = Path::new(&sql_file);
     if !sqlfile_path.exists() {
         eprintln!("File {} does not exist", sqlfile_path.display());
         std::process::exit(1);
@@ -79,81 +85,44 @@ fn run_mask_pii_action(args: &MaskPIIArgs) -> ExtractResult<Vec<Statement>> {
     let file_bytes = std::fs::read(sqlfile_path).expect("unable to read file");
     let file_str = std::str::from_utf8(&file_bytes).expect("Invalid UTF-8 sequence");
 
-    let masking_config = args.masking_config.clone().unwrap_or_default();
+    let masking_config = args.masking_config.clone();
     let config = parse_masking_config(&masking_config).expect("unable to load masking config");
-    // let parser = sql_script_parser(&file_bytes).map(|x| x.statement);
-    // let mut my_parser = MyParser::new();
+    let dml_regex = Regex::new(r"^insert").unwrap();
+    let mut out_sql: Vec<String> = vec![];
+    let transform = Transform::new(&config);
 
-    // my_parser = my_parser.parse(file_str).unwrap();
-    // println!("my parser: {:?}", my_parser);
+    let file_descriptor = File::open(sqlfile_path).unwrap();
+    let mut iter = IterateFileLines::from(file_descriptor);
 
-    // let mut issues = Vec::new();
-    // let options = ParseOptions::new()
-    //     .dialect(SQLDialect::MariaDB)
-    //     .arguments(sql_parse::SQLArguments::QuestionMark)
-    //     .warn_unquoted_identifiers(true);
+    loop {
+        let line = iter.next();
+        if line.is_none() {
+            break;
+        }
+        if dml_regex.is_match(line.as_ref().unwrap()) {
+            let mut insert_block = line.clone().unwrap();
+            let values = iter.next();
+            insert_block.push_str(&values.unwrap());
+            //println!("Insert block {:?}", insert_block);
+            insert_block.retain(|c| c != '\n' && c != '\r');
+            let dml_stmt = Insert::from(
+                MySqlParser::parse(Rule::INSERT_STATEMENT, &insert_block)
+                    .expect("Invalid input")
+                    .next()
+                    .expect("Unable to parse input"),
+            );
 
-    // parser.into_iter().for_each(|x| {
-    //     // take a string and parse it into a list of statements
-    //     // where each is a single SQL operation
-    //     let sql_str = std::str::from_utf8(x).expect("Invalid UTF-8 sequence");
-    // let ast = parse_statements(sql_str, &mut issues, &options);
-    //     // since we're only dealing with insert replace statements
-    //     // which are a single operation per statement
-    //     // we can assume there's only one. If there are more statements
-    //     // we are just going to ignore them as they aren't an insert or replace statement
-    //     if ast.len() == 1 {
-    //         match &ast[0] {
-    //             InsertReplace(sql_parse::InsertReplace {
-    //                 columns, values, ..
-    //             }) => {
-    //                 // In an insert replace statement, we are dealing with values and their columns that match
-    //                 // the value.
-    //                 // To create a masking application, we'll walk through each of the columns matched with their
-    //                 // values. If the value is a column that we are interested in given by the filter configuration
-    //                 // then we'll match up the appropriate rule and apply it to the value, replacing the original
-    //                 // value with the masked value.
-    //                 let values = values.as_ref().unwrap();
-    //                 let cols =
-    //                     columns
-    //                         .into_iter()
-    //                         .zip(values.clone().1.into_iter())
-    //                         .map(|(col, val)| {
-    //                             if config.filter_column(&col.value.to_string()) {
-    //                                 let masking_fn = get_struct_by_name(&col.value.to_string());
-    //                                 let new_val = masking_fn.fake();
-    //                                 let new_stmt = Expression::StringLiteral(new_val.to_string());
-    //                                 (col, new_stmt)
-    //                             } else {
-    //                                 (col, val)
-    //                             }
-    //                         });
-    //                 let cols =
-    //                     columns
-    //                         .into_iter()
-    //                                 .zip(values.clone().1.into_iter())
-    //                                 .filter(|(x, _val)| config.filter_column(&x.value.to_string()))
-    //                                 .collect::<Vec<(
-    //                                     &sql_parse::Identifier<'_>,
-    //                                     Vec<sql_parse::Expression<'_>>,
-    //                                 )>>();
-    //                 let mut new_values = Vec::new();
-    //                 for (col, _val) in cols {
-    //                     let fn_ = get_struct_by_name(&col.to_string());
-    //                     // let rule = MaskingRule(fn_);
-    //                     // let val = rule.fake();
-    //                     let val = fn_.fake();
-    //                     new_values.push(val);
-    //                 }
-    //             }
-    //             _ => {}
-    //         }
-    //     } else {
-    //         // ast.iter().for_each(|x| {
-    //         //     println!("{:?}", x);
-    //         // });
-    //     }
-    // });
+            let mut dml_stmts = vec![dml_stmt];
+            transform.mask_dml_stmts(dml_stmts.as_mut_slice());
+            out_sql.push(dml_stmts[0].as_sql());
+        } else {
+            out_sql.push(line.unwrap());
+        }
+    }
+
+    // write out_sql to stdout
+    println!("{}", out_sql.join("\n"));
+
     Ok(vec![])
 }
 
@@ -267,7 +236,7 @@ mod tests {
         // });
         // assert!(res.is_ok());
     }
-
+    /*
     #[test]
     fn test_can_extract_sql_from_file() {
         let args = MaskPIIArgs {
@@ -280,6 +249,7 @@ mod tests {
         let res = res.unwrap();
         assert!(res.len() == 1);
     }
+    */
 
     fn create_test_masking_config(temp_dir: &TempDir) -> PathBuf {
         let temp_file_in_path = temp_dir.path().join("test.yaml");

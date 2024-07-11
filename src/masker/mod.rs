@@ -16,24 +16,33 @@ impl<'a> Transform<'a> {
     pub fn mask_dml_stmts(&self, dmls: &mut [Insert]) {
         for stmt in dmls {
             let columns: &[String] = &stmt.column_names;
-            let values: &[InsertValue] = &stmt.values[0].0;
-            let values_str: Vec<String> = values.iter().map(|v| v.to_string().replace('\'', "")).collect();
-            
-            let masked = columns
-                .iter()
-                .zip(values_str.iter())
-                .map(|(column, value)| {
-                    if self.config.filter_column(value) || self.config.filter_column(column) {
-                        let rule = get_struct_by_name(column);
-                        let masked_value = rule.fake();
-                        (column.clone(), masked_value.clone())
-                    } else {
-                        (column.clone(), value.clone())
-                    }
-                })
-                .collect::<Vec<(String, String)>>();
+            for (i, value) in stmt.values.clone().iter().enumerate() {
+                let values_str: Vec<String> = value
+                    .0
+                    .iter()
+                    .map(|v| v.to_string().replace('\'', ""))
+                    .collect();
 
-            stmt.values[0].0 = masked.iter().cloned().map(|(_, value)| InsertValue::Text { value }).collect::<Vec<InsertValue>>();
+                let masked = columns
+                    .iter()
+                    .zip(values_str.iter())
+                    .map(|(column, value)| {
+                        if self.config.filter_column(value) || self.config.filter_column(column) {
+                            let rule = get_struct_by_name(column);
+                            let masked_value = rule.fake();
+                            (column.clone(), masked_value.clone())
+                        } else {
+                            (column.clone(), value.clone())
+                        }
+                    })
+                    .collect::<Vec<(String, String)>>();
+
+                stmt.values[i].0 = masked
+                    .iter()
+                    .cloned()
+                    .map(|(_, value)| InsertValue::Text { value })
+                    .collect::<Vec<InsertValue>>();
+            }
         }
     }
 }
@@ -55,7 +64,7 @@ mod tests {
         let mut dmls = vec![Insert::from(
             MySqlParser::parse(
                 Rule::INSERT_STATEMENT,
-                "INSERT INTO `my_table` (`contact`, `email`) VALUES ('John Doe', 'jdoe@gmail.com');",
+                "INSERT INTO `my_table` (`contact`, `email`) VALUES ('John Doe', 'jdoe@gmail.com'), ('Johanna Rogers', 'jrogers@hotmail.com');",
             )
             .expect("Invalid input")
             .next()
@@ -71,8 +80,32 @@ mod tests {
         )
         .unwrap();
 
-        assert_ne!(dmls[0].values[0].0[0], InsertValue::Text { value: "John Doe".to_owned() });
-        assert_ne!(dmls[0].values[0].0[1], InsertValue::Text { value: "jdoe@gmail.com".to_owned() });
+        assert_ne!(
+            dmls[0].values[0].0[0],
+            InsertValue::Text {
+                value: "John Doe".to_owned()
+            }
+        );
+        assert_ne!(
+            dmls[0].values[0].0[1],
+            InsertValue::Text {
+                value: "jdoe@gmail.com".to_owned()
+            }
+        );
         assert!(email_regex.is_match(&dmls[0].values[0].0[1].to_string().replace('\'', "")));
+        assert_ne!(
+            dmls[0].values[1].0[0],
+            InsertValue::Text {
+                value: "Johanna Rogers".to_owned()
+            }
+        );
+        assert_ne!(
+            dmls[0].values[1].0[1],
+            InsertValue::Text {
+                value: "jrogers@gmail.com".to_owned()
+            }
+        );
+        assert!(email_regex.is_match(&dmls[0].values[1].0[1].to_string().replace('\'', "")));
+ 
     }
 }

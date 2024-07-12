@@ -35,7 +35,8 @@ sql-parse = "0.20.0"
 tera = "1.20.0"
 uuid = { version = "1.9.1", features = ["v4"] }
 iterate-text = "0.0.1"
-pii-masker-pii = { path = "../pii-masker/crates/pii" }
+# RFU
+#pii-masker-pii = { path = "../pii-masker/crates/pii" }
 
 [dev-dependencies]
 tempfile = "3.10.1"

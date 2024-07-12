@@ -82,9 +82,6 @@ fn run_mask_pii_action(sql_file: String, args: &MaskPIIArgs) -> ExtractResult<Ve
         std::process::exit(1);
     }
 
-    let file_bytes = std::fs::read(sqlfile_path).expect("unable to read file");
-    let file_str = std::str::from_utf8(&file_bytes).expect("Invalid UTF-8 sequence");
-
     let masking_config = args.masking_config.clone();
     let config = parse_masking_config(&masking_config).expect("unable to load masking config");
     let dml_regex = Regex::new(r"^insert").unwrap();
@@ -103,7 +100,6 @@ fn run_mask_pii_action(sql_file: String, args: &MaskPIIArgs) -> ExtractResult<Ve
             let mut insert_block = line.clone().unwrap();
             let values = iter.next();
             insert_block.push_str(&values.unwrap());
-            //println!("Insert block {:?}", insert_block);
             insert_block.retain(|c| c != '\n' && c != '\r');
             let dml_stmt = Insert::from(
                 MySqlParser::parse(Rule::INSERT_STATEMENT, &insert_block)
@@ -120,29 +116,13 @@ fn run_mask_pii_action(sql_file: String, args: &MaskPIIArgs) -> ExtractResult<Ve
         }
     }
 
-    // write out_sql to stdout
-    println!("{}", out_sql.join("\n"));
+    let out_sql = out_sql.join("");
+    println!("{}", out_sql);
 
     Ok(vec![])
 }
-
-/// Run a single replacement
-fn create_new_statement_for_masking<'a>(
-    config: &crate::settings::MaskingConfig,
-    statements: Vec<Statement<'a>>,
-) -> ExtractResult<Vec<Statement<'a>>> {
-    statements.into_iter().for_each(|x| match x {
-        InsertReplace(sql_parse::InsertReplace {
-            columns, values, ..
-        }) => {
-            println!("{:?}", columns);
-            println!("{:?}", values);
-        }
-        _ => {}
-    });
-    Ok(vec![])
-}
-
+///
+///
 /// Default action.
 ///
 /// 1. Parse the SQL file and print the JSON representation of the SQL.
@@ -209,49 +189,7 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_replace_single_statement() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let test_sql_file = create_temp_sql_with_insert(&temp_dir);
-        let test_config = create_test_masking_config(&temp_dir);
-
-        let parsed_config =
-            parse_masking_config(&test_config.as_os_str().to_str().unwrap()).unwrap();
-
-        let sql_single_insert = r#"INSERT INTO users (id, name, email, password) VALUES (1, 'John Doe', 'john.doe@example.com', 'password');"#;
-
-        let mut issues = Vec::new();
-        let options = ParseOptions::new()
-            .dialect(SQLDialect::MariaDB)
-            .arguments(sql_parse::SQLArguments::QuestionMark)
-            .warn_unquoted_identifiers(true);
-
-        let ast = parse_statements(&sql_single_insert, &mut issues, &options);
-
-        let _ = create_new_statement_for_masking(&parsed_config, ast);
-
-        // let res = run_mask_pii_action(&MaskPIIArgs {
-        //     sql_file: "./tests/schema_dump.sql".to_string(),
-        //     masking_config: Some("./tests/more.yaml".to_string()),
-        // });
-        // assert!(res.is_ok());
-    }
-    /*
-    #[test]
-    fn test_can_extract_sql_from_file() {
-        let args = MaskPIIArgs {
-            sql_file: "./tests/schema_dump.sql".to_string(),
-            masking_config: Some("./tests/more.yaml".to_string()),
-        };
-        let res = run_mask_pii_action(&args);
-        println!("{:?}", res);
-        assert!(res.is_ok());
-        let res = res.unwrap();
-        assert!(res.len() == 1);
-    }
-    */
-
-    fn create_test_masking_config(temp_dir: &TempDir) -> PathBuf {
+      fn create_test_masking_config(temp_dir: &TempDir) -> PathBuf {
         let temp_file_in_path = temp_dir.path().join("test.yaml");
         let test_config = r#"
 columns:

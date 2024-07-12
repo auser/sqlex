@@ -2,7 +2,8 @@ use crate::parser::statements::Insert;
 use crate::parser::types::InsertValue;
 use crate::rules::get_struct_by_name;
 use crate::settings::MaskingConfig;
-use pii_masker_pii::similarity;
+// RFU
+// use pii_masker_pii::similarity;
 
 pub struct Transform<'a> {
     pub config: &'a MaskingConfig,
@@ -13,6 +14,7 @@ impl<'a> Transform<'a> {
         Self { config }
     }
 
+    // define a method that 
     pub fn mask_dml_stmts(&self, dmls: &mut [Insert]) {
         for stmt in dmls {
             let columns: &[String] = &stmt.column_names;

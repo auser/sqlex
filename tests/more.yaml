@@ -1,6 +1,9 @@
 columns:
   - account
   - password
+  - contact
+  - firstName
+  - lastName
 patterns:
   - name: email
     regex: ^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$
